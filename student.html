@@ -106,7 +106,7 @@
         }
         .board-answer-box {
             margin-top: 15px; padding: 15px; background: #e8f5e9; border-left: 4px solid #2e7d32;
-            border-radius: 4px; display: none; animation: fadeIn 0.3s;
+            border-radius: 4px; display: none; animation: fadeIn 0.3s; font-size: 0.95em; line-height: 1.5;
         }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -320,10 +320,8 @@
             try {
                 let q;
                 if(isBoardMode) {
-                    // Board Query: Exam + Subject + Category + Verified
                     q = query(collection(db, "questions"), where("exam", "==", currentExam), where("subject", "==", currentSubject), where("category", "==", currentCategory), where("verified", "==", true), orderBy("timestamp", "desc"));
                 } else {
-                    // Entrance Query: Exam + Subject + Verified
                     q = query(collection(db, "questions"), where("exam", "==", currentExam), where("subject", "==", currentSubject), where("verified", "==", true), orderBy("timestamp", "desc"));
                 }
 
@@ -334,14 +332,19 @@
                 snapshot.forEach(doc => allFetchedQuestions.push({ id: doc.id, ...doc.data() }));
                 startNewSession();
             } catch (error) {
-                views.loading.innerHTML = `<p style="color:red">Error: ${error.message}</p><button class="retry-btn" onclick="goHome()">Go Back</button>`;
+                // Smart Error for Index
+                let msg = error.message;
+                if (msg.includes("index")) {
+                    msg += `<br><br><a href="https://console.firebase.google.com/v1/r/project/ertquiz/firestore/indexes" target="_blank" style="color:red; font-weight:bold;">Create Index Required</a>`;
+                }
+                views.loading.innerHTML = `<p style="color:red">Error: ${msg}</p><button class="retry-btn" onclick="goHome()">Go Back</button>`;
             }
         }
 
         window.startNewSession = () => {
             history.pushState(null, null, window.location.href); isQuizActive = true;
             const shuffled = [...allFetchedQuestions].sort(() => 0.5 - Math.random());
-            sessionQuestions = isBoardMode ? shuffled : shuffled.slice(0, 10); // Board = All, MCQ = 10
+            sessionQuestions = isBoardMode ? shuffled : shuffled.slice(0, 10);
             resetAndStart();
         };
         
@@ -351,11 +354,10 @@
             currentIndex = 0; score = 0; userReview = [];
             hideAllViews(); views.quiz.classList.remove('hidden');
             
-            // Layout Adjustments
             if (isBoardMode) {
-                quizHeader.style.display = 'none'; // No Progress Bar
+                quizHeader.style.display = 'none';
             } else {
-                quizHeader.style.display = 'flex'; // Yes Progress Bar
+                quizHeader.style.display = 'flex';
             }
             quizFooter.style.display = 'block';
             setTimeout(resizeCanvas, 50);
@@ -366,19 +368,16 @@
             const data = sessionQuestions[currentIndex];
             const total = sessionQuestions.length;
 
-            // Clear board
             if(ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
             boardIsDirty = false; updateSmartBtn();
 
-            // Progress Bar (MCQ Only)
             if(!isBoardMode) {
                 document.getElementById('q-counter').innerText = `Q ${currentIndex + 1}/${total}`;
                 document.getElementById('progress-bar').style.width = `${((currentIndex + 1) / total) * 100}%`;
             }
 
-            // Button Logic
+            // BUTTON LOGIC
             if (isBoardMode) {
-                // Board: Always enable next button, but change text on last one
                 nextBtn.disabled = false;
                 nextBtn.style.opacity = "1";
                 if (currentIndex === total - 1) {
@@ -389,7 +388,6 @@
                     nextBtn.style.background = "var(--primary)";
                 }
             } else {
-                // MCQ: Disable until answered
                 nextBtn.disabled = true; 
                 nextBtn.innerText = (currentIndex === total - 1) ? "Finish 🏁" : "Next ➡";
                 nextBtn.style.opacity = "0.5";
@@ -398,9 +396,8 @@
 
             const imgHTML = data.imageUrl ? `<img src="${data.imageUrl}" class="q-img">` : '';
 
-            // RENDER CONTENT
             if (isBoardMode) {
-                // BOARD LAYOUT (Subjective)
+                // BOARD LAYOUT
                 quizContent.innerHTML = `
                     ${imgHTML}
                     <div class="q-text">${data.question}</div>
@@ -412,7 +409,7 @@
                     </div>
                 `;
             } else {
-                // ENTRANCE LAYOUT (MCQ)
+                // ENTRANCE LAYOUT
                 quizContent.innerHTML = `
                     ${imgHTML}
                     <div class="q-text">${data.question}</div>
@@ -441,18 +438,12 @@
         };
 
         window.nextQuestion = () => {
-            // BOARD MODE: Last question goes Home
             if (isBoardMode && currentIndex === sessionQuestions.length - 1) {
-                goHome();
-                return;
+                goHome(); return;
             }
-
             currentIndex++;
-            if(currentIndex < sessionQuestions.length) {
-                renderSlide();
-            } else {
-                showResults(); // Only for MCQ
-            }
+            if(currentIndex < sessionQuestions.length) renderSlide();
+            else showResults();
         };
 
         function showResults() {
